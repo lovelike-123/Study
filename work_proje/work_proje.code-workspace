@@ -1,0 +1,15 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "java.debug.settings.onBuildFailureProceed": true,
+    "java.project.referencedLibraries": [
+      "lib/**/*.jar",
+      "java/java_helloworld/lib/fastutil-8.5.8.jar"
+    ],
+    "java.project.outputPath": "java\\output_classfile"
+  }
+}
