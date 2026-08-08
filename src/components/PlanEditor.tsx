@@ -281,7 +281,8 @@ export default function PlanEditor({ plan, onClose }: { plan: Plan | null; onClo
 
       <Picker
         visible={picker}
-        columns={[exercises.map(e => ({ label: e.name, value: e.id! }))]}
+        title="选个动作加进计划"
+        columns={[exercises.map(e => ({ label: `${e.category} · ${e.name}`, value: e.id! }))]}
         onClose={() => setPicker(false)}
         onConfirm={(v) => { const id = v[0] as number; if (id != null) addItem(id); setPicker(false) }}
       />

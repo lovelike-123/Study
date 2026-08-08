@@ -34,7 +34,7 @@ export default function Settings() {
   const [restEx, setRestEx] = useSetting(SK.restExercises, DEFAULT_REST_EXERCISES)
   const [vib, setVib] = useSetting(SK.restVibrate, true)
   const [sound, setSound] = useSetting(SK.restSound, true)
-  const [, setUnit] = useSetting(SK.unit, DEFAULT_UNIT)
+  const [unit, setUnit] = useSetting(SK.unit, DEFAULT_UNIT)
   const [weekGoal, setWeekGoal] = useSetting(SK.weekGoal, DEFAULT_WEEK_GOAL)
 
   // 数据统计（用于导出预览/清空说明）
@@ -209,11 +209,13 @@ export default function Settings() {
         <div className="card">
           <h3 className="card-title">单位</h3>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className={'chip' + (restSets > 0 ? '' : ' on')} onClick={() => setUnit('kg')}>公斤 kg</button>
-            <button className={'chip'} onClick={() => setUnit('lb')}>磅 lb</button>
+            <button className={'chip' + (unit === 'kg' ? ' on' : '')} onClick={() => setUnit('kg')}>公斤 kg</button>
+            <button className={'chip' + (unit === 'lb' ? ' on' : '')} onClick={() => setUnit('lb')}>磅 lb</button>
           </div>
           <div className="small muted" style={{ paddingTop: 8 }}>
-            单位切换将在后续版本接通训练录入与历史显示。当前仅记录偏好。
+            当前选择：<b>{unit === 'kg' ? '公斤' : '磅'}</b>。
+            当前已记住偏好，训练录入与历史显示的换算会在后续版本接通——
+            现在所有数字仍按 kg 原值展示。
           </div>
         </div>
 

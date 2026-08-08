@@ -23,6 +23,24 @@ function setSummary(metric: Metric, s: SSet): string {
   return parts.join(' · ')
 }
 
+/**
+ * 把秒数格式化为「X 分 Y 秒」/「X 秒」/「X 分钟」。
+ * - < 60 秒              →  "10 秒"
+ * - < 10 分钟（且有零头）→  "3 分 25 秒"（避免出现「0 分钟」）
+ * - < 10 分钟（整分钟）  →  "3 分钟"
+ * - ≥ 10 分钟            →  "23 分钟"（继续取整到分钟）
+ */
+function fmtTotal(sec: number): string {
+  if (sec < 60) return `${sec} 秒`
+  const min = sec / 60
+  if (min < 10) {
+    const m = Math.floor(min)
+    const s = sec - m * 60
+    return s > 0 ? `${m} 分 ${s} 秒` : `${m} 分钟`
+  }
+  return `${Math.round(min)} 分钟`
+}
+
 function metricTag(m: Metric): string {
   return m === 'weight_reps' ? '重量×次数' : m === 'reps' ? '仅次数' : m === 'time' ? '时长' : '距离'
 }
@@ -93,7 +111,7 @@ export default function TrainPage() {
     const durationSec = Math.round((endAt - session.startedAt) / 1000)
     // 30 分钟以内的训练（含休息时间）弹放弃选项，让用户决定是否保留
     if (durationSec < 30 * 60) {
-      setShortRun(Math.round(durationSec / 60))
+      setShortRun(durationSec)
       return
     }
     const doneSets = session.items.flatMap(ex => ex.sets.filter(s => s.done).map(s => ({
@@ -151,7 +169,7 @@ export default function TrainPage() {
 
   // ---------- 完成 / 保存页 ----------
   if (t.phase === 'done') {
-    const mins = t.session ? Math.round((Date.now() - t.session.startedAt) / 60000) : 0
+    const dur = t.session ? Math.round((Date.now() - t.session.startedAt) / 1000) : 0
     return (
       <>
         <header className="nav">
@@ -161,9 +179,9 @@ export default function TrainPage() {
         <main className="body">
           <div className="card">
             <div className="stat-row">
-              <div className="stat"><div className="stat-num">{mins}</div><div className="stat-label">时长 分钟</div></div>
+              <div className="stat"><div className="stat-num">{fmtTotal(dur)}</div><div className="stat-label">时长</div></div>
               <div className="stat"><div className="stat-num">{t.doneCount()}</div><div className="stat-label">完成组数</div></div>
-              <div className="stat"><div className="stat-num">{t.session?.items.length ?? 0}</div><div className="stat-label">动作数</div></div>
+              <div className="stat"><div className="stat-num">{t.session?.items.length ?? 0}</div><div className="stat-label">动作种类</div></div>
             </div>
           </div>
           <div className="card">
@@ -183,7 +201,7 @@ export default function TrainPage() {
               <div className="modal-card" onClick={e => e.stopPropagation()}>
                 <div className="modal-title">训练时长不足 30 分钟</div>
                 <div className="modal-body">
-                  本次训练仅 <b>{shortRun}</b> 分钟（含休息时间），是否放弃？
+                  本次训练仅 <b>{fmtTotal(shortRun)}</b>（含休息时间），是否放弃？
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
                   <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setShortRun(null)}>继续</button>
@@ -275,7 +293,8 @@ export default function TrainPage() {
 
         <Picker
           visible={picker}
-          columns={[exercises.map(e => ({ label: e.name, value: e.id! }))]}
+          title="选个动作加进去"
+          columns={[exercises.map(e => ({ label: `${e.category} · ${e.name}`, value: e.id! }))]}
           onClose={() => setPicker(false)}
           onConfirm={(v) => { const id = v[0] as number; if (id != null) addExercise(id); }}
         />

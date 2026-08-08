@@ -239,6 +239,7 @@ function WeeklyBar({ data, avg }: { data: WeekStat[]; avg: number }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!ref.current) return
+    if (!data.some(d => d.days > 0)) return  // 没数据时不挂图表，避免一片空白坐标轴
     const chart = echarts.init(ref.current)
     chart.setOption({
       grid: { left: 26, right: 8, top: 16, bottom: 24 },
@@ -272,6 +273,9 @@ function WeeklyBar({ data, avg }: { data: WeekStat[]; avg: number }) {
     ro.observe(ref.current)
     return () => { ro.disconnect(); chart.dispose() }
   }, [data, avg])
+  if (!data.some(d => d.days > 0)) {
+    return <div className="empty small muted" style={{ padding: '16px 0' }}>暂无训练数据，开始训练后这里会长出柱子</div>
+  }
   return <div ref={ref} style={{ width: '100%', height: 168 }} />
 }
 
