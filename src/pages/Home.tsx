@@ -9,10 +9,9 @@ import { dayKey, trainedDays } from '../utils/stats'
 import { useTraining } from '../store/training'
 import PlanEditor from '../components/PlanEditor'
 import { IconChevron } from '../components/Icons'
+import { DEFAULT_WEEK_GOAL, SK, useSetting } from '../hooks/useSetting'
 import type { Plan } from '../db/types'
 import TrainPage from './Train'
-
-const WEEK_GOAL = 4
 
 function Ring({ pct }: { pct: number }) {
   const r = 27
@@ -33,6 +32,7 @@ export default function Home() {
   const nav = useNavigate()
   const phase = useTraining(s => s.phase)
   const startTrain = useTraining(s => s.setPhase)
+  const [weekGoal] = useSetting(SK.weekGoal, DEFAULT_WEEK_GOAL)
 
   const [editingPlan, setEditingPlan] = useState<Plan | null | undefined>(undefined)
   // undefined=列表, null=新建, Plan=编辑
@@ -64,7 +64,7 @@ export default function Home() {
     const list = await db.exercises.toArray()
     return new Map(list.map(e => [e.id!, e]))
   }, [], new Map<number, any>())
-  const pct = stats.dayCount / WEEK_GOAL
+  const pct = stats.dayCount / weekGoal
 
   // 训练进行中：直接在主选项卡内渲染训练界面，不跳转
   if (phase !== 'idle') return <TrainPage />
@@ -89,11 +89,11 @@ export default function Home() {
         <div className="hero-top">
           <div>
             <div className="hero-greet">今天，也要好好练</div>
-            <div className="hero-date">{dayjs().format('M月D日')} · 本周目标 {WEEK_GOAL} 练</div>
+            <div className="hero-date">{dayjs().format('M月D日')} · 本周目标 {weekGoal} 练</div>
           </div>
           <div className="hero-ring">
             <Ring pct={pct} />
-            <div className="hero-ring-label">{stats.dayCount}<span>/{WEEK_GOAL}</span></div>
+            <div className="hero-ring-label">{stats.dayCount}<span>/{weekGoal}</span></div>
           </div>
         </div>
         <button className="btn-primary" onClick={() => startTrain('start')}>
@@ -177,7 +177,7 @@ export default function Home() {
         <div className="small muted" style={{ marginTop: 12, textAlign: 'center' }}>
           {lastSync
             ? `热量来自小米运动健康 · 最近同步至 ${dayKey(lastSync.importedAt)}`
-            : '热量数据待接入小米运动健康，尚未导入'}
+            : '暂无热量数据；训练结束后可手动填入 kcal（或等后续版本接入 Health Connect）'}
         </div>
       </div>
     </Page>

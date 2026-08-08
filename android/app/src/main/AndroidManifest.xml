@@ -38,4 +38,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- V2: 休息计时器震动提示需要（WebView 上 navigator.vibrate 才有权限启用） -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>
