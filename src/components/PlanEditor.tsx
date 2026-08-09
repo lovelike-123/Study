@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { pushBackHandler } from '../utils/backStack'
 import { Picker, Input, TextArea, Toast } from 'antd-mobile'
 import { db } from '../db'
 import {
@@ -45,6 +46,17 @@ export default function PlanEditor({ plan, onClose }: { plan: Plan | null; onClo
     if (!plan) { setRs(gRs); setRe(gRe) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gRs, gRe])
+
+  // 系统返回键：先关浮层（选择器），再关整个编辑器
+  useEffect(() => {
+    if (!picker) return
+    return pushBackHandler(() => setPicker(false))
+  }, [picker])
+  useEffect(() => {
+    if (!confirmDel) return
+    return pushBackHandler(() => setConfirmDel(false))
+  }, [confirmDel])
+  useEffect(() => pushBackHandler(onClose), [onClose])
 
   const addItem = (id: number) => {
     const ex = exMap.get(id)

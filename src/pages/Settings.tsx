@@ -1,32 +1,22 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { pushBackHandler } from '../utils/backStack'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Toast } from 'antd-mobile'
+import { Toast, Dialog } from 'antd-mobile'
 import dayjs from 'dayjs'
 import { db } from '../db'
 import {
   DEFAULT_REST_EXERCISES, DEFAULT_REST_SETS,
-  type Exercise, type Plan, type SetRecord, type Workout,
 } from '../db/types'
 import { DEFAULT_UNIT, DEFAULT_WEEK_GOAL, SK, useSetting } from '../hooks/useSetting'
 import { Page } from '../components/Layout'
 import RestTimer from '../components/RestTimer'
 import { canVibrate, notifyRestEnd } from '../utils/feedback'
+import { BACKUP_VERSION, exportBackup, parseBackupText, type ExportPayload } from '../utils/backup'
 
-const SETTINGS_VERSION = 1
 const REST_PRESETS = [30, 60, 90, 120, 180]
 const WEEK_GOAL_MIN = 2
 const WEEK_GOAL_MAX = 7
-
-interface ExportPayload {
-  version: number
-  exportedAt: number
-  exercises: Exercise[]
-  plans: Plan[]
-  workouts: Workout[]
-  sets: SetRecord[]
-  settings: { key: string; value: unknown }[]
-}
 
 export default function Settings() {
   const nav = useNavigate()
@@ -52,26 +42,45 @@ export default function Settings() {
   const [wipeText, setWipeText] = useState('')
   const [demo, setDemo] = useState<number | null>(null)
 
-  const exportData = async () => {
-    const payload: ExportPayload = {
-      version: SETTINGS_VERSION,
-      exportedAt: Date.now(),
-      exercises: await db.exercises.toArray(),
-      plans: await db.plans.toArray(),
-      workouts: await db.workouts.toArray(),
-      sets: await db.sets.toArray(),
-      settings: await db.settings.toArray(),
+  // 系统返回键：关闭最上层确认浮层
+  useEffect(() => {
+    if (!confirmImport) return
+    return pushBackHandler(() => setConfirmImport(null))
+  }, [confirmImport])
+  useEffect(() => {
+    if (!confirmWipe) return
+    return pushBackHandler(() => setConfirmWipe(false))
+  }, [confirmWipe])
+
+  const doExport = async () => {
+    const res = await exportBackup()
+    if (res.saved) {
+      // 明确告诉用户文件存入的具体路径
+      await Dialog.alert({
+        title: '备份已导出',
+        content: (
+          <div style={{ textAlign: 'left', fontSize: 13, lineHeight: 1.7 }}>
+            <div>备份文件已存入手机本地存储：</div>
+            <div
+              style={{
+                marginTop: 8, padding: '8px 10px',
+                background: 'var(--bg, #f5f6f8)', borderRadius: 8,
+                color: 'var(--brand, #19c18d)', fontWeight: 600,
+                wordBreak: 'break-all',
+              }}
+            >
+              {res.filePath}
+            </div>
+            <div className="small muted" style={{ marginTop: 8 }}>
+              可在系统「文件管理」App 的 <b>Documents / {res.filePath?.split('/').slice(0, -1).pop()}</b> 目录找到该文件。
+            </div>
+          </div>
+        ),
+        confirmText: '知道了',
+      })
+    } else {
+      await Dialog.alert({ title: '提示', content: res.message, confirmText: '知道了' })
     }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `fitlog-${dayjs().format('YYYY-MM-DD-HHmm')}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    Toast.show('已导出')
   }
 
   const pickImport = () => fileRef.current?.click()
@@ -82,8 +91,7 @@ export default function Settings() {
     if (!file) return
     try {
       const text = await file.text()
-      const data = JSON.parse(text)
-      if (!isExportPayload(data)) throw new Error('文件格式不合法')
+      const data = await parseBackupText(text)
       setConfirmImport(data)
     } catch (err) {
       Toast.show('导入失败：' + (err as Error).message)
@@ -225,9 +233,9 @@ export default function Settings() {
           <div className="small muted" style={{ paddingBottom: 10 }}>
             当前 {counts.exercises} 动作 · {counts.plans} 计划 · {counts.workouts} 训练 · {counts.sets} 组
           </div>
-          <button className="btn-ghost" style={{ width: '100%' }} onClick={exportData}>导出全部数据（JSON）</button>
-          <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={pickImport}>从 JSON 导入</button>
-          <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={onFileChange} />
+          <button className="btn-ghost" style={{ width: '100%' }} onClick={doExport}>导出备份（txt）</button>
+          <button className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={pickImport}>从备份导入（txt / json）</button>
+          <input ref={fileRef} type="file" accept=".txt,.json,text/plain,application/json" hidden onChange={onFileChange} />
           <div className="small muted" style={{ paddingTop: 8 }}>
             导入将覆盖现有数据，建议先导出当前数据备份。
           </div>
@@ -280,7 +288,7 @@ export default function Settings() {
           <div className="modal-card" onClick={e => e.stopPropagation()}>
             <div className="modal-title">确认导入？</div>
             <div className="modal-body" style={{ textAlign: 'left' }}>
-              文件版本：v{confirmImport.version}<br />
+              文件版本：v{confirmImport.version ?? BACKUP_VERSION}<br />
               导出时间：{dayjs(confirmImport.exportedAt).format('YYYY-MM-DD HH:mm')}<br />
               含 {confirmImport.exercises.length} 动作 · {confirmImport.plans.length} 计划 ·
               {confirmImport.workouts.length} 训练 · {confirmImport.sets.length} 组
@@ -317,16 +325,4 @@ function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
       }} />
     </button>
   )
-}
-
-function isExportPayload(d: unknown): d is ExportPayload {
-  if (!d || typeof d !== 'object') return false
-  const x = d as any
-  return x.version === SETTINGS_VERSION
-    && Array.isArray(x.exercises)
-    && Array.isArray(x.plans)
-    && Array.isArray(x.workouts)
-    && Array.isArray(x.sets)
-    && Array.isArray(x.settings)
-    && typeof x.exportedAt === 'number'
 }

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
+import { pushBackHandler } from '../utils/backStack'
 import {
   SearchBar, Selector, Popup, Picker, Input, TextArea,
   Button, Dialog, SwipeAction, Toast, Empty,
@@ -70,6 +71,16 @@ export default function Exercises() {
     if (kw && !e.name.toLowerCase().includes(kw.toLowerCase())) return false
     return true
   })
+
+  // 系统返回键：先关掉最上层浮层（新建/编辑弹窗、选择器）
+  useEffect(() => {
+    if (!show) return
+    return pushBackHandler(() => setShow(false))
+  }, [show])
+  useEffect(() => {
+    if (picker === null) return
+    return pushBackHandler(() => setPicker(null))
+  }, [picker])
 
   return (
     <>

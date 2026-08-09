@@ -32,9 +32,17 @@ interface TrainingState {
   resting: Resting | null
   calories: string
   note: string
+  /** 执行页"放弃"确认浮层是否打开（系统返回键也会操作它） */
+  confirmAbandon: boolean
+  /** 训练时长不足 30 分钟时的确认弹窗（数值为已训练秒数） */
+  shortRun: number | null
 
   setPhase: (p: Phase) => void
   reset: () => void
+  setConfirmAbandon: (v: boolean) => void
+  setShortRun: (v: number | null) => void
+  /** 系统/物理返回键在训练中的统一行为 */
+  back: () => void
   startPlan: (plan: Plan, exercises: Exercise[], vib: boolean, sound: boolean) => void
   startFree: (gRs: number, gRe: number, vib: boolean, sound: boolean) => void
   addExercise: (id: number, exercises: Exercise[]) => void
@@ -56,9 +64,27 @@ export const useTraining = create<TrainingState>((set, get) => ({
   resting: null,
   calories: '',
   note: '',
+  confirmAbandon: false,
+  shortRun: null,
 
   setPhase: (p) => set({ phase: p }),
-  reset: () => set({ phase: 'idle', session: null, cur: null, resting: null, calories: '', note: '' }),
+  reset: () => set({ phase: 'idle', session: null, cur: null, resting: null, calories: '', note: '', confirmAbandon: false, shortRun: null }),
+  setConfirmAbandon: (v) => set({ confirmAbandon: v }),
+  setShortRun: (v) => set({ shortRun: v }),
+
+  // 系统返回键在训练中的统一逻辑，与屏内"返回/放弃"按钮行为一致
+  back: () => {
+    const { phase, confirmAbandon, shortRun } = get()
+    if (phase === 'start') {
+      set({ phase: 'idle' })
+    } else if (phase === 'done') {
+      if (shortRun !== null) set({ shortRun: null }) // 先关掉"时长不足"弹窗
+      else set({ phase: 'run' })
+    } else if (phase === 'run') {
+      // 执行页：先关掉已打开的"放弃"确认，否则打开它
+      set({ confirmAbandon: !confirmAbandon })
+    }
+  },
 
   startPlan: (plan, exercises, vib, sound) => {
     let skipped = 0

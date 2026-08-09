@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Toast, Empty } from 'antd-mobile'
 import dayjs from 'dayjs'
 import { db } from '../db'
 import type { Exercise, SetRecord } from '../db/types'
+import { pushBackHandler } from '../utils/backStack'
 
 type SetPatch = Partial<SetRecord> & { _deleted?: boolean }
 
@@ -46,6 +47,16 @@ export default function WorkoutDetail() {
     [] as SetRecord[],
   )
   const exercises = useLiveQuery(() => db.exercises.toArray(), [], [] as Exercise[])
+
+  // 系统返回键：编辑态先退出编辑，删除确认先关确认
+  useEffect(() => {
+    if (!editing) return
+    return pushBackHandler(() => { setPatch({}); setEditing(false) })
+  }, [editing])
+  useEffect(() => {
+    if (!confirmDel) return
+    return pushBackHandler(() => setConfirmDel(false))
+  }, [confirmDel])
 
   if (!workout) {
     return (

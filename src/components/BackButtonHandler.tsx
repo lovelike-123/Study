@@ -1,0 +1,63 @@
+import { useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { App } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
+import { useTraining } from '../store/training'
+import { consumeTopBackHandler } from '../utils/backStack'
+
+// 顶层 Tab 路由：命中说明用户正处于某个 Tab 根页
+const TAB_ROUTES = ['/', '/history', '/stats', '/settings']
+
+/**
+ * 统一接管手机"系统/物理返回键"。只注册一次监听，当前路由通过 ref 读取，避免快速切换时重复注册。
+ * 派发优先级：
+ *   1) 若有浮层（弹窗 / Picker / Popup / 编辑态等）打开 → 关闭最上层浮层
+ *   2) 若正在训练中（状态机未 idle）→ 走训练内的返回 / 放弃逻辑
+ *   3) 嵌套路由（如 /history/:id）→ 路由后退
+ *   4) 其他 Tab 根页 → 回到首页 Tab
+ *   5) 已在首页 → 退出 App
+ * 非原生环境（浏览器）不注册监听，交由浏览器默认行为处理。
+ */
+export default function BackButtonHandler() {
+  const nav = useNavigate()
+  const { pathname } = useLocation()
+  const navRef = useRef(nav)
+  const pathRef = useRef(pathname)
+  navRef.current = nav
+  pathRef.current = pathname
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+
+    let detach: (() => void) | undefined
+    App.addListener('backButton', () => {
+      // 1) 浮层优先
+      if (consumeTopBackHandler()) return
+
+      // 2) 训练中
+      const st = useTraining.getState()
+      if (st.phase !== 'idle') {
+        st.back()
+        return
+      }
+
+      // 3) / 4) / 5) 路由层
+      const p = pathRef.current
+      if (!TAB_ROUTES.includes(p)) {
+        navRef.current(-1) // 嵌套路由（如训练详情）
+      } else if (p !== '/') {
+        navRef.current('/') // 非首页 Tab → 回首页
+      } else {
+        App.exitApp() // 首页 → 退出
+      }
+    }).then(handle => {
+      detach = () => handle.remove()
+    }).catch(() => {
+      /* 低版本或无法注册时静默降级 */
+    })
+
+    return () => detach?.()
+  }, [])
+
+  return null
+}

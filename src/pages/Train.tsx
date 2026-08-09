@@ -95,8 +95,6 @@ export default function TrainPage() {
   const [vib] = useSetting(SK.restVibrate, true)
   const [sound] = useSetting(SK.restSound, true)
   const [picker, setPicker] = useState(false)
-  const [confirmAbandon, setConfirmAbandon] = useState(false)
-  const [shortRun, setShortRun] = useState<number | null>(null) // 时长不足时的分钟数
 
   const startPlan = (p: Plan) => t.startPlan(p, exercises, vib, sound)
   const startFree = () => t.startFree(gRs, gRe, vib, sound)
@@ -111,7 +109,7 @@ export default function TrainPage() {
     const durationSec = Math.round((endAt - session.startedAt) / 1000)
     // 30 分钟以内的训练（含休息时间）弹放弃选项，让用户决定是否保留
     if (durationSec < 30 * 60) {
-      setShortRun(durationSec)
+      t.setShortRun(durationSec)
       return
     }
     const doneSets = session.items.flatMap(ex => ex.sets.filter(s => s.done).map(s => ({
@@ -196,16 +194,16 @@ export default function TrainPage() {
           </div>
           <button className="btn-primary" style={{ width: '100%' }} onClick={save}>保存训练</button>
 
-          {shortRun !== null && (
-            <div className="modal-mask" onClick={() => setShortRun(null)}>
+          {t.shortRun !== null && (
+            <div className="modal-mask" onClick={() => t.setShortRun(null)}>
               <div className="modal-card" onClick={e => e.stopPropagation()}>
                 <div className="modal-title">训练时长不足 30 分钟</div>
                 <div className="modal-body">
-                  本次训练仅 <b>{fmtTotal(shortRun)}</b>（含休息时间），是否放弃？
+                  本次训练仅 <b>{fmtTotal(t.shortRun!)}</b>（含休息时间），是否放弃？
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                  <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setShortRun(null)}>继续</button>
-                  <button className="btn-ghost" style={{ flex: 1, color: '#fff', background: '#e5484d', borderColor: '#e5484d' }} onClick={() => { setShortRun(null); t.reset() }}>放弃</button>
+                  <button className="btn-ghost" style={{ flex: 1 }} onClick={() => t.setShortRun(null)}>继续</button>
+                  <button className="btn-ghost" style={{ flex: 1, color: '#fff', background: '#e5484d', borderColor: '#e5484d' }} onClick={() => { t.setShortRun(null); t.reset() }}>放弃</button>
                 </div>
               </div>
             </div>
@@ -222,17 +220,17 @@ export default function TrainPage() {
   return (
     <>
       <header className="nav">
-        <div className="nav-left" onClick={() => setConfirmAbandon(true)}>放弃</div>
+        <div className="nav-left" onClick={() => t.setConfirmAbandon(true)}>放弃</div>
         {t.session?.name}
         <div className="nav-right" onClick={finish}>结束</div>
       </header>
       <main className="body">
-        {confirmAbandon && (
+        {t.confirmAbandon && (
           <div className="card" style={{ textAlign: 'center' }}>
             <div>确定放弃本次训练？已记录的内容不会保存。</div>
             <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-              <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmAbandon(false)}>继续</button>
-              <button className="btn-primary" style={{ flex: 1 }} onClick={() => { setConfirmAbandon(false); t.reset() }}>放弃</button>
+              <button className="btn-ghost" style={{ flex: 1 }} onClick={() => t.setConfirmAbandon(false)}>继续</button>
+              <button className="btn-primary" style={{ flex: 1 }} onClick={() => { t.setConfirmAbandon(false); t.reset() }}>放弃</button>
             </div>
           </div>
         )}
