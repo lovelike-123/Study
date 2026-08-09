@@ -5,10 +5,10 @@ import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { db } from '../db'
 import { Page } from '../components/Layout'
-import { dayKey, trainedDays } from '../utils/stats'
+import { dayKey, trainedDays, streaks } from '../utils/stats'
 import { useTraining } from '../store/training'
 import PlanEditor from '../components/PlanEditor'
-import { IconChevron } from '../components/Icons'
+import { IconBar, IconChevron, IconFlame, IconGrid, IconPlan } from '../components/Icons'
 import { DEFAULT_WEEK_GOAL, SK, useSetting } from '../hooks/useSetting'
 import type { Plan } from '../db/types'
 import TrainPage from './Train'
@@ -54,8 +54,8 @@ export default function Home() {
     const manualKcal = done.reduce((s, w) => s + (w.calorieSource === 'manual' ? w.calories ?? 0 : 0), 0)
     const kcal = watchKcal + manualKcal
 
-    return { dayCount: days.size, kcal, minutes, hasHealth: healthRows.length > 0 }
-  }, [], { dayCount: 0, kcal: 0, minutes: 0, hasHealth: false })
+    return { dayCount: days.size, kcal, minutes, hasHealth: healthRows.length > 0, streak: streaks(days).current }
+  }, [], { dayCount: 0, kcal: 0, minutes: 0, hasHealth: false, streak: 0 })
 
   const exCount = useLiveQuery(() => db.exercises.count(), [], 0)
   const lastSync = useLiveQuery(() => db.dailyHealth.orderBy('importedAt').last(), [])
@@ -89,24 +89,35 @@ export default function Home() {
         <div className="hero-top">
           <div>
             <div className="hero-greet">今天，也要好好练</div>
+            {stats.streak > 0 && (
+              <span className="hero-streak"><IconFlame size={14} /> 连续 {stats.streak} 天</span>
+            )}
+          </div>
+        </div>
+        <div className="hero-row">
+          <div>
             <div className="hero-date">{dayjs().format('M月D日')} · 本周目标 {weekGoal} 练</div>
+            <div className="hero-sub">
+              {stats.kcal > 0 ? `已消耗 ${Math.round(stats.kcal)} kcal` : '开启训练，记录每一次进步'}
+            </div>
           </div>
           <div className="hero-ring">
             <Ring pct={pct} />
             <div className="hero-ring-label">{stats.dayCount}<span>/{weekGoal}</span></div>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => startTrain('start')}>
+        <button className="hero-cta" onClick={() => startTrain('start')}>
           开始训练
         </button>
       </section>
 
       {/* 训练计划（已合并到首页） */}
       <div className="card">
-        <h3 className="card-title">
-          训练计划
-          <span className="small muted" style={{ fontWeight: 400 }}>{plans.length} 个</span>
-        </h3>
+        <div className="sec">
+          <span className="sec-ic"><IconPlan size={16} /></span>
+          <span className="sec-title">训练计划</span>
+          <span className="sec-sub">{plans.length} 个</span>
+        </div>
         {plans.length === 0 ? (
           <div className="empty small muted" style={{ padding: '12px 0' }}>还没有训练计划，点下方新建</div>
         ) : (
@@ -143,23 +154,21 @@ export default function Home() {
 
       {/* 动作库快捷入口 */}
       <div className="card" onClick={() => nav('/exercises')} style={{ cursor: 'pointer' }}>
-        <div className="list-item">
-          <div className="grow">
-            <div className="name">动作库</div>
-            <div className="small muted">共 {exCount} 个动作 · 点此管理</div>
-          </div>
-          <IconChevron size={18} />
+        <div className="sec">
+          <span className="sec-ic"><IconGrid size={16} /></span>
+          <span className="sec-title">动作库</span>
+          <span className="sec-sub">管理 ›</span>
         </div>
+        <div className="small muted" style={{ marginTop: 2 }}>共 {exCount} 个动作 · 点此管理</div>
       </div>
 
       {/* 本周概览 */}
       <div className="card">
-        <h3 className="card-title">
-          本周概览
-          <span className="small muted" style={{ fontWeight: 400 }}>
-            {dayjs().startOf('week').add(1, 'day').format('M/D')} 起
-          </span>
-        </h3>
+        <div className="sec">
+          <span className="sec-ic"><IconBar size={16} /></span>
+          <span className="sec-title">本周概览</span>
+          <span className="sec-sub">{dayjs().startOf('week').add(1, 'day').format('M/D')} 起</span>
+        </div>
         <div className="stat-row">
           <div className="stat">
             <div className="stat-num">{stats.dayCount}</div>
