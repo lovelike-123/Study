@@ -1,9 +1,12 @@
 import { create } from 'zustand'
 import { Toast } from 'antd-mobile'
 import type { Exercise, Metric, Plan, SSet, SEx, Session } from '../db/types'
+import { showTrainingNotification, cancelTrainingNotification } from '../utils/trainingNotification'
+import { clearTrainingSnapshot, loadTrainingSnapshot, saveTrainingSnapshot } from '../utils/trainingPersist'
 
 type Phase = 'idle' | 'start' | 'run' | 'done'
-interface Resting { seconds: number; next: { ex: number; set: number } }
+/** 休息倒计时。endAt 为绝对结束时间戳，进程被杀重启后仍能算出准确剩余秒数 */
+interface Resting { seconds: number; endAt: number; next: { ex: number; set: number } }
 
 function makeSets(opts: {
   warmup: number; work: number; reps: number; weight: number; durationSec: number; distance: number;
@@ -36,11 +39,21 @@ interface TrainingState {
   confirmAbandon: boolean
   /** 训练时长不足 30 分钟时的确认弹窗（数值为已训练秒数） */
   shortRun: number | null
+  /** 训练已转入后台：界面隐藏但进程不中断，由系统通知 / 应用内横幅提供返回入口 */
+  minimized: boolean
+  /** 返回键触发的「后台运行 / 放弃训练」选择弹窗 */
+  bgDialog: boolean
 
   setPhase: (p: Phase) => void
   reset: () => void
   setConfirmAbandon: (v: boolean) => void
   setShortRun: (v: number | null) => void
+  setMinimized: (v: boolean) => void
+  setBgDialog: (v: boolean) => void
+  /** 转入后台：隐藏训练界面并挂出系统状态栏常驻通知（点击可返回） */
+  background: () => void
+  /** 回到训练：恢复训练界面并移除常驻通知 */
+  resume: () => void
   /** 系统/物理返回键在训练中的统一行为 */
   back: () => void
   startPlan: (plan: Plan, exercises: Exercise[], vib: boolean, sound: boolean) => void
@@ -48,6 +61,8 @@ interface TrainingState {
   addExercise: (id: number, exercises: Exercise[]) => void
   updateSet: (ex: number, st: number, patch: Partial<SSet>) => void
   markDone: () => void
+  /** 休息倒计时加时（秒），写回 endAt 以便跨进程恢复 */
+  extendRest: (sec: number) => void
   advance: () => void
   skipExercise: () => void
   setCalories: (v: string) => void
@@ -66,11 +81,28 @@ export const useTraining = create<TrainingState>((set, get) => ({
   note: '',
   confirmAbandon: false,
   shortRun: null,
+  minimized: false,
+  bgDialog: false,
 
   setPhase: (p) => set({ phase: p }),
-  reset: () => set({ phase: 'idle', session: null, cur: null, resting: null, calories: '', note: '', confirmAbandon: false, shortRun: null }),
+  reset: () => {
+    cancelTrainingNotification()
+    clearTrainingSnapshot()
+    set({ phase: 'idle', session: null, cur: null, resting: null, calories: '', note: '', confirmAbandon: false, shortRun: null, minimized: false, bgDialog: false })
+  },
   setConfirmAbandon: (v) => set({ confirmAbandon: v }),
   setShortRun: (v) => set({ shortRun: v }),
+  setMinimized: (v) => set({ minimized: v }),
+  setBgDialog: (v) => set({ bgDialog: v }),
+  background: () => {
+    const name = get().session?.name ?? '训练'
+    set({ minimized: true, bgDialog: false })
+    void showTrainingNotification(name)
+  },
+  resume: () => {
+    set({ minimized: false })
+    void cancelTrainingNotification()
+  },
 
   // 系统返回键在训练中的统一逻辑，与屏内"返回/放弃"按钮行为一致
   back: () => {
@@ -193,7 +225,13 @@ export const useTraining = create<TrainingState>((set, get) => ({
     if (!nx) { set({ cur: null, resting: null, phase: 'done' }); return }
     const sameEx = nx.ex === cur.ex
     const secs = sameEx ? (ex.restSec ?? session.planRs) : session.planRe
-    set({ resting: { seconds: secs, next: nx } })
+    set({ resting: { seconds: secs, endAt: Date.now() + secs * 1000, next: nx } })
+  },
+
+  extendRest: (sec) => {
+    const r = get().resting
+    if (!r) return
+    set({ resting: { ...r, seconds: r.seconds + sec, endAt: r.endAt + sec * 1000 } })
   },
 
   advance: () => {
@@ -218,3 +256,50 @@ export const useTraining = create<TrainingState>((set, get) => ({
     return null
   },
 }))
+
+// ---------------- 训练进程持久化 ----------------
+// Android 可能在 App 退到后台后回收进程，仅靠内存状态无法保证"训练不中断"。
+// 这里把影响恢复的字段实时落盘；瞬态浮层（确认框等）不触发写入。
+let lastSnapKey: unknown[] = []
+useTraining.subscribe((s) => {
+  const { phase, session, cur, resting, calories, note } = s
+  if (phase === 'idle' || !session) return // reset() 内已清除快照
+  const key = [phase, session, cur, resting, calories, note]
+  if (key.length === lastSnapKey.length && key.every((v, i) => v === lastSnapKey[i])) return
+  lastSnapKey = key
+  saveTrainingSnapshot({ phase, session, cur, resting, calories, note })
+})
+
+/** 冷启动是否从快照恢复了训练（供 UI 提示一次） */
+let restoredOnBoot = false
+
+/**
+ * 冷启动还原上次未结束的训练。必须在 React 挂载前调用一次。
+ * 进程重启后系统常驻通知已消失，因此直接回到训练界面（minimized=false），
+ * 避免用户误以为训练被中断。
+ */
+export function hydrateTraining(): boolean {
+  const snap = loadTrainingSnapshot()
+  if (!snap?.session) return false
+  useTraining.setState({
+    phase: snap.phase,
+    session: snap.session,
+    cur: snap.cur ?? null,
+    resting: snap.resting ?? null,
+    calories: snap.calories ?? '',
+    note: snap.note ?? '',
+    minimized: false,
+    confirmAbandon: false,
+    shortRun: null,
+    bgDialog: false,
+  })
+  restoredOnBoot = true
+  return true
+}
+
+/** 读取并复位"本次冷启动恢复了训练"标记 */
+export function consumeRestoredFlag(): boolean {
+  const v = restoredOnBoot
+  restoredOnBoot = false
+  return v
+}

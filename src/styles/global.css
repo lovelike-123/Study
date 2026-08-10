@@ -126,18 +126,18 @@ body {
   padding: 16px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
 }
-/* 进场：子元素错落淡入 */
-.body > * { animation: cardIn .42s var(--ease) both; }
-.body > *:nth-child(1) { animation-delay: .03s; }
-.body > *:nth-child(2) { animation-delay: .07s; }
-.body > *:nth-child(3) { animation-delay: .11s; }
-.body > *:nth-child(4) { animation-delay: .15s; }
-.body > *:nth-child(5) { animation-delay: .19s; }
-.body > *:nth-child(6) { animation-delay: .23s; }
-.body > *:nth-child(n+7) { animation-delay: .27s; }
+/* 进场：子元素错落淡入（仅透明度，去掉位移滑动，避免低性能设备卡顿） */
+.body > * { animation: cardIn .3s ease both; }
+.body > *:nth-child(1) { animation-delay: .02s; }
+.body > *:nth-child(2) { animation-delay: .04s; }
+.body > *:nth-child(3) { animation-delay: .06s; }
+.body > *:nth-child(4) { animation-delay: .08s; }
+.body > *:nth-child(5) { animation-delay: .10s; }
+.body > *:nth-child(6) { animation-delay: .12s; }
+.body > *:nth-child(n+7) { animation-delay: .14s; }
 @keyframes cardIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ---------- Card ---------- */
@@ -576,4 +576,32 @@ body {
   .body > * { animation: none !important; }
   .hero::before { animation: none !important; }
   .modal-mask, .modal-card { animation: none !important; }
+}
+
+/* ---------- 训练后台返回横幅（全局，覆盖在导航栏之上） ---------- */
+.train-resume-banner {
+  position: fixed;
+  top: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: var(--shell-max, 460px);
+  z-index: 60;
+  display: flex; align-items: center; gap: 8px;
+  height: calc(40px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) 14px 0;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-brand);
+}
+.train-resume-banner .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #fff; flex: none;
+  animation: bannerPulse 1.4s ease-in-out infinite;
+}
+.train-resume-banner .label { flex: 1; text-align: left; }
+.train-resume-banner .go { font-weight: 700; }
+@keyframes bannerPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .train-resume-banner .dot { animation: none; }
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Picker, Input, TextArea, Toast, Empty } from 'antd-mobile'
 import { db } from '../db'
@@ -94,6 +95,7 @@ export default function TrainPage() {
   const [gRe] = useSetting(SK.restExercises, DEFAULT_REST_EXERCISES)
   const [vib] = useSetting(SK.restVibrate, true)
   const [sound] = useSetting(SK.restSound, true)
+  const nav = useNavigate()
   const [picker, setPicker] = useState(false)
 
   const startPlan = (p: Plan) => t.startPlan(p, exercises, vib, sound)
@@ -235,6 +237,30 @@ export default function TrainPage() {
           </div>
         )}
 
+        {t.bgDialog && (
+          <div className="modal-mask" onClick={() => t.setBgDialog(false)}>
+            <div className="modal-card" onClick={e => e.stopPropagation()}>
+              <div className="modal-title">训练仍在进行</div>
+              <div className="modal-body">
+                是否转入后台继续训练？未主动放弃前，训练进程不会中断，可随时通过状态栏通知或顶部横幅返回。
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                <button className="btn-ghost" style={{ flex: 1 }} onClick={() => t.setBgDialog(false)}>继续训练</button>
+                <button
+                  className="btn-ghost"
+                  style={{ flex: 1, color: '#fff', background: 'var(--brand)', borderColor: 'var(--brand)' }}
+                  onClick={() => { t.setBgDialog(false); t.background(); nav('/') }}
+                >后台运行</button>
+              </div>
+              <button
+                className="btn-ghost"
+                style={{ width: '100%', marginTop: 10, color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' }}
+                onClick={() => { t.setBgDialog(false); t.setConfirmAbandon(true) }}
+              >放弃训练</button>
+            </div>
+          </div>
+        )}
+
         <div className="small muted" style={{ padding: '4px 2px 10px', display: 'flex', justifyContent: 'space-between' }}>
           <span>已完成 {t.doneCount()} / {t.allSets().length} 组</span>
           {t.session?.planId === undefined && <span className="tag gray" style={{ border: 'none' }} onClick={() => setPicker(true)}>+ 加动作</span>}
@@ -244,7 +270,14 @@ export default function TrainPage() {
           <div className="card"><Empty description="还没有动作，点上方 + 加动作" /></div>
         ) : t.resting ? (
           <div className="card" style={{ textAlign: 'center' }}>
-            <RestTimer seconds={t.resting.seconds} vibrate={t.session!.vib} sound={t.session!.sound} onCancel={t.advance} />
+            <RestTimer
+              seconds={t.resting.seconds}
+              endAt={t.resting.endAt}
+              vibrate={t.session!.vib}
+              sound={t.session!.sound}
+              onCancel={t.advance}
+              onExtend={t.extendRest}
+            />
           </div>
         ) : curEx && curSet ? (
           <div className="card">

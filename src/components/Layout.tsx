@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { IconHistory, IconMe, IconStats, IconTrain } from './Icons'
+import TrainingResumeBanner from './TrainingResumeBanner'
 
 const TABS = [
   { path: '/', label: '训练', Icon: IconTrain },
@@ -15,6 +16,7 @@ export default function Layout() {
 
   return (
     <div className="shell">
+      <TrainingResumeBanner />
       <Outlet />
       <nav className="tabbar">
         {TABS.map(({ path, label, Icon }) => (

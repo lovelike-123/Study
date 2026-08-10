@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { SwipeAction, Toast } from 'antd-mobile'
+import { Toast } from 'antd-mobile'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { db } from '../db'
@@ -8,7 +8,7 @@ import { Page } from '../components/Layout'
 import { dayKey, trainedDays, streaks } from '../utils/stats'
 import { useTraining } from '../store/training'
 import PlanEditor from '../components/PlanEditor'
-import { IconBar, IconChevron, IconFlame, IconGrid, IconPlan } from '../components/Icons'
+import { IconBar, IconChevron, IconFlame, IconGrid, IconPlan, IconTrash } from '../components/Icons'
 import { DEFAULT_WEEK_GOAL, SK, useSetting } from '../hooks/useSetting'
 import type { Plan } from '../db/types'
 import TrainPage from './Train'
@@ -31,6 +31,7 @@ function Ring({ pct }: { pct: number }) {
 export default function Home() {
   const nav = useNavigate()
   const phase = useTraining(s => s.phase)
+  const minimized = useTraining(s => s.minimized)
   const startTrain = useTraining(s => s.setPhase)
   const [weekGoal] = useSetting(SK.weekGoal, DEFAULT_WEEK_GOAL)
 
@@ -66,8 +67,9 @@ export default function Home() {
   }, [], new Map<number, any>())
   const pct = stats.dayCount / weekGoal
 
-  // 训练进行中：直接在主选项卡内渲染训练界面，不跳转
-  if (phase !== 'idle') return <TrainPage />
+  // 训练进行中且未转入后台：直接在主选项卡内渲染训练界面，不跳转
+  // 若已转入后台(minimized)，则展示首页，训练进程不受影响，由状态栏通知 / 横幅返回
+  if (phase !== 'idle' && !minimized) return <TrainPage />
 
   // 编辑计划时，覆盖主页内容
   if (editingPlan !== undefined) {
@@ -129,20 +131,23 @@ export default function Home() {
                 .slice(0, 3)
                 .join('、')
               return (
-                <SwipeAction
-                  key={p.id}
-                  rightActions={[{ key: 'del', text: '删除', color: 'danger', onClick: () => onDeletePlan(p) }]}
-                >
-                  <div className="list-item" style={{ padding: '10px 0' }} onClick={() => setEditingPlan(p)}>
-                    <div className="grow">
-                      <div className="name">{p.name}</div>
-                      <div className="small muted" style={{ marginTop: 4 }}>
-                        {p.items.length} 个动作{p.items.length ? ` · ${names}${p.items.length > 3 ? '…' : ''}` : ''}
-                      </div>
+                <div className="list-item" key={p.id} style={{ padding: '10px 0' }} onClick={() => setEditingPlan(p)}>
+                  <div className="grow">
+                    <div className="name">{p.name}</div>
+                    <div className="small muted" style={{ marginTop: 4 }}>
+                      {p.items.length} 个动作{p.items.length ? ` · ${names}${p.items.length > 3 ? '…' : ''}` : ''}
                     </div>
-                    <IconChevron size={18} />
                   </div>
-                </SwipeAction>
+                  <button
+                    className="plan-del"
+                    style={{ marginLeft: 8, padding: 4, background: 'transparent', border: 'none', color: '#e54d42', display: 'flex', alignItems: 'center' }}
+                    onClick={(e) => { e.stopPropagation(); onDeletePlan(p) }}
+                    aria-label="删除计划"
+                  >
+                    <IconTrash size={18} />
+                  </button>
+                  <IconChevron size={18} />
+                </div>
               )
             })}
           </div>
