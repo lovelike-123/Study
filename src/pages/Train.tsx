@@ -7,14 +7,15 @@ import {
   DEFAULT_REST_EXERCISES, DEFAULT_REST_SETS,
   type Exercise, type Metric, type Plan, type SSet,
 } from '../db/types'
-import { SK, useSetting } from '../hooks/useSetting'
+import { SK, useSetting, DEFAULT_UNIT, type Unit } from '../hooks/useSetting'
 import { IconChevron } from '../components/Icons'
+import { kgToLb, lbToKg, displayWeight, unitLabel } from '../utils/units'
 import RestTimer from '../components/RestTimer'
 import { useTraining } from '../store/training'
 
-function setSummary(metric: Metric, s: SSet): string {
+function setSummary(metric: Metric, s: SSet, unit: Unit): string {
   const parts: string[] = []
-  if (metric === 'weight_reps') parts.push(`${s.weight || 0}kg × ${s.reps || 0}`)
+  if (metric === 'weight_reps') parts.push(`${displayWeight(s.weight || 0, unit)}${unitLabel(unit)} × ${s.reps || 0}`)
   else if (metric === 'reps') parts.push(`${s.reps || 0} 次`)
   else if (metric === 'time') parts.push(`${s.durationSec || 0} 秒`)
   else if (metric === 'distance') parts.push(`${s.distance || 0} km`)
@@ -46,13 +47,19 @@ function metricTag(m: Metric): string {
   return m === 'weight_reps' ? '重量×次数' : m === 'reps' ? '仅次数' : m === 'time' ? '时长' : '距离'
 }
 
-function MetricInputs({ metric, s, set }: { metric: Metric; s: SSet; set: (p: Partial<SSet>) => void }) {
+function MetricInputs({ metric, s, set, unit }: { metric: Metric; s: SSet; set: (p: Partial<SSet>) => void; unit: Unit }) {
   const hasIncline = (s.incline ?? 0) > 0 || metric === 'distance' // 跑步机距离类统一显示坡度
   const hasSpeed = (s.speed ?? 0) > 0 || metric === 'distance'
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
       {(metric === 'weight_reps' || metric === 'time') && (
-        <Num label={metric === 'time' ? '负重kg' : '重量kg'} value={s.weight} onChange={v => set({ weight: v })} />
+        <Num
+          label={metric === 'time' ? `负重${unitLabel(unit)}` : `重量${unitLabel(unit)}`}
+          value={s.weight}
+          onChange={v => set({ weight: v })}
+          toDisplay={unit === 'lb' ? (kg) => Math.round(kgToLb(kg) * 2) / 2 : undefined}
+          fromDisplay={unit === 'lb' ? lbToKg : undefined}
+        />
       )}
       {(metric === 'weight_reps' || metric === 'reps') && (
         <Num label="次数" value={s.reps} onChange={v => set({ reps: v })} />
@@ -74,13 +81,20 @@ function MetricInputs({ metric, s, set }: { metric: Metric; s: SSet; set: (p: Pa
   )
 }
 
-function Num({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function Num({ label, value, onChange, toDisplay, fromDisplay }: {
+  label: string; value: number; onChange: (v: number) => void;
+  toDisplay?: (kg: number) => number; fromDisplay?: (display: number) => number;
+}) {
+  const shown = toDisplay ? toDisplay(value) : value
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <span className="small muted">{label}</span>
       <Input
-        value={value ? String(value) : ''}
-        onChange={str => onChange(Math.max(0, Number(str) || 0))}
+        value={shown ? String(shown) : ''}
+        onChange={str => {
+          const raw = Math.max(0, Number(str) || 0)
+          onChange(fromDisplay ? fromDisplay(raw) : raw)
+        }}
         type="number" placeholder="0" style={{ width: 64 }}
       />
     </div>
@@ -95,8 +109,10 @@ export default function TrainPage() {
   const [gRe] = useSetting(SK.restExercises, DEFAULT_REST_EXERCISES)
   const [vib] = useSetting(SK.restVibrate, true)
   const [sound] = useSetting(SK.restSound, true)
+  const [unit] = useSetting(SK.unit, DEFAULT_UNIT)
   const nav = useNavigate()
   const [picker, setPicker] = useState(false)
+  const [pickerValue, setPickerValue] = useState<number | null>(null)
 
   const startPlan = (p: Plan) => t.startPlan(p, exercises, vib, sound)
   const startFree = () => t.startFree(gRs, gRe, vib, sound)
@@ -263,7 +279,7 @@ export default function TrainPage() {
 
         <div className="small muted" style={{ padding: '4px 2px 10px', display: 'flex', justifyContent: 'space-between' }}>
           <span>已完成 {t.doneCount()} / {t.allSets().length} 组</span>
-          {t.session?.planId === undefined && <span className="tag gray" style={{ border: 'none' }} onClick={() => setPicker(true)}>+ 加动作</span>}
+          {t.session?.planId === undefined && <span className="tag gray" style={{ border: 'none' }} onClick={() => { setPickerValue(exercises[0]?.id ?? null); setPicker(true) }}>+ 加动作</span>}
         </div>
 
         {t.session?.items.length === 0 ? (
@@ -304,7 +320,7 @@ export default function TrainPage() {
                         {hasNext ? '开始休息' : '完成训练'}
                       </button>
                     </div>
-                    {s.kind !== 'warmup' && <MetricInputs metric={curEx.metric} s={s} set={p => t.updateSet(t.cur!.ex, j, p)} />}
+                    {s.kind !== 'warmup' && <MetricInputs metric={curEx.metric} s={s} set={p => t.updateSet(t.cur!.ex, j, p)} unit={unit} />}
                   </div>
                 )
               }
@@ -312,7 +328,7 @@ export default function TrainPage() {
                 <div key={j} className="list-item" style={{ padding: '12px 0', borderTop: '1px solid var(--line)', opacity: s.done ? 1 : 0.45 }}>
                   <span className={'tag ' + (s.kind === 'warmup' && !isTimed ? 'gray' : '')}>{tag}</span>
                   <div className="grow" style={{ textAlign: 'right' }}>
-                    {s.done ? (isTimed || s.kind === 'warmup' ? '已完成' : setSummary(curEx.metric, s)) : '未开始'}
+                    {s.done ? (isTimed || s.kind === 'warmup' ? '已完成' : setSummary(curEx.metric, s, unit)) : '未开始'}
                   </div>
                 </div>
               )
@@ -325,9 +341,10 @@ export default function TrainPage() {
         <Picker
           visible={picker}
           title="选个动作加进去"
+          value={pickerValue != null ? [pickerValue] : undefined}
           columns={[exercises.map(e => ({ label: `${e.category} · ${e.name}`, value: e.id! }))]}
           onClose={() => setPicker(false)}
-          onConfirm={(v) => { const id = v[0] as number; if (id != null) addExercise(id); }}
+          onConfirm={(v) => { const id = v[0] as number; if (id != null) { setPickerValue(id); addExercise(id) } }}
         />
       </main>
     </>

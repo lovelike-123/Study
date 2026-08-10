@@ -38,6 +38,8 @@ export async function showTrainingNotification(name: string): Promise<void> {
           id: NOTIF_ID,
           title,
           body,
+          smallIcon: 'ic_notification', // 避免 Android 8+ 通知无图标（白块/不显示）
+          iconColor: '#19c18d', // 小图标染成品牌绿
           ongoing: true, // 常驻，不被滑动清除
           autoCancel: false,
         },

@@ -148,7 +148,7 @@ body {
   margin-bottom: 14px;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--line-2);
-  transition: transform .14s var(--ease), box-shadow .14s var(--ease);
+  transition: transform .14s var(--ease), box-shadow .14s var(--ease), background-color .2s var(--ease), border-color .2s var(--ease);
 }
 .card-title {
   font-size: 16px;
@@ -605,3 +605,56 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .train-resume-banner .dot { animation: none; }
 }
+
+/* ============ 深色模式（P3-2）============ */
+[data-theme="dark"] {
+  --bg: #0f1115;
+  --bg-2: #161a21;
+  --card: #171b22;
+  --text: #e8eaed;
+  --text-2: #aab1bd;
+  --text-3: #6b7280;
+  --line: #232833;
+  --line-2: #1c212b;
+  --brand-soft: #11261f;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, .45);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, .55);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, .6);
+  --shadow-brand: 0 10px 24px rgba(25, 193, 141, .22);
+  --glass: rgba(23, 27, 34, .72);
+  --glass-strong: rgba(23, 27, 34, .9);
+  --glass-border: rgba(255, 255, 255, .08);
+
+  /* antd-mobile v5 暗色变量 */
+  --adm-color-background: #0f1115;
+  --adm-color-text: #e8eaed;
+  --adm-color-text-secondary: #aab1bd;
+  --adm-color-light: #171b22;
+  --adm-color-border: #232833;
+  --adm-color-box: #171b22;
+  --adm-color-white: #171b22;
+  --adm-color-fill-content: #171b22;
+  --adm-color-mask: rgba(0, 0, 0, .6);
+}
+[data-theme="dark"] body {
+  background:
+    radial-gradient(120% 80% at 50% -10%, #11201b 0%, transparent 55%),
+    var(--bg);
+}
+[data-theme="dark"] .shell {
+  background: var(--bg);
+  background-image: radial-gradient(120% 70% at 50% -8%, #15211d 0%, transparent 52%);
+}
+[data-theme="dark"] .card { box-shadow: none; }
+[data-theme="dark"] .card.soft { background: #13161c; }
+[data-theme="dark"] .stat { background: linear-gradient(180deg, #16241d 0%, #122019 100%); }
+[data-theme="dark"] .btn-ghost:active { background: #1c212b; }
+[data-theme="dark"] .step-btn:active:not(:disabled) { background: #1c212b; }
+[data-theme="dark"] .cal-cell:not(.empty):not(.future):active { background: var(--brand-soft); }
+[data-theme="dark"] .modal-card { background: #1a1f27; }
+[data-theme="dark"] .modal-body { color: var(--text-2); }
+/* 主题切换平滑过渡（不覆盖 .card 原有 transform 过渡，见下方 .card 规则） */
+html { transition: background-color .2s var(--ease); }
+body { transition: background-color .2s var(--ease); }
+.quick-item, .nav, .tabbar { transition: background-color .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease); }

@@ -7,7 +7,7 @@ export const METRIC_LABEL: Record<Metric, string> = {
   distance: '距离',
 }
 
-export type Category = '胸' | '背' | '腿' | '肩' | '手臂' | '核心' | '有氧' | '其他'
+export type Category = '胸' | '背' | '腿' | '肩' | '手臂' | '核心' | '臀' | '有氧' | '前臂' | '其他'
 
 export const CATEGORIES: Category[] = ['胸', '背', '腿', '肩', '手臂', '核心', '有氧', '其他']
 
@@ -79,7 +79,7 @@ export interface Workout {
   calories?: number
   calorieSource?: CalorieSource
   note?: string
-  status: 'active' | 'done'
+  status: 'done'
 }
 
 /** 来自智能手表 / 小米运动健康的每日数据，date 为 YYYY-MM-DD */

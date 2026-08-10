@@ -186,6 +186,10 @@ export const useTraining = create<TrainingState>((set, get) => ({
     }
     set(prev => {
       if (!prev.session) return prev
+      if (prev.session.items.some(it => it.exerciseId === id)) {
+        Toast.show('该动作已在本次训练中')
+        return prev
+      }
       const items = [...prev.session.items, item]
       const nextCur = prev.cur ?? { ex: items.length - 1, set: 0 }
       return { session: { ...prev.session, items }, cur: nextCur }

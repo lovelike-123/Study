@@ -6,6 +6,9 @@ import App from './App'
 import { ensureSeed } from './db/seed'
 import { initTrainingNotificationTap, initTrainingAppStateSync } from './utils/trainingNotification'
 import { hydrateTraining } from './store/training'
+import { applyTheme } from './theme'
+import { db } from './db'
+import { DEFAULT_THEME, SK, type Theme } from './hooks/useSetting'
 import './styles/global.css'
 
 // V5: React 19 兼容补丁 — antd-mobile v5 默认假设 React 16~18，
@@ -29,6 +32,8 @@ initTrainingNotificationTap()
 initTrainingAppStateSync()
 // 冷启动还原上次未结束的训练：进程被系统回收后重新进入 App 仍能接着练
 hydrateTraining()
+// 启动即应用主题（渲染前设定，避免首屏闪白/闪黑）
+db.settings.get(SK.theme).then(r => applyTheme((r?.value as Theme) ?? DEFAULT_THEME)).catch(() => {})
 
 ensureSeed().finally(() => {
   createRoot(document.getElementById('root')!).render(

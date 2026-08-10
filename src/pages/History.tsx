@@ -5,6 +5,8 @@ import dayjs from 'dayjs'
 import { db } from '../db'
 import { Page } from '../components/Layout'
 import { dayKey } from '../utils/stats'
+import { SK, useSetting, DEFAULT_UNIT, type Unit } from '../hooks/useSetting'
+import { displayWeight, unitLabel } from '../utils/units'
 import type { Exercise, Metric, SetRecord, Workout } from '../db/types'
 
 function fmtDur(sec: number): string {
@@ -19,24 +21,24 @@ function fmtDurMin(sec: number): string {
   return `${Math.round(sec / 60)} 分钟`
 }
 
-/** 把一组集合并成简写：「60kg × 10」/「20 次」/「30 秒」/「5 km」 */
-function fmtSet(metric: Metric, s: SetRecord): string {
-  if (metric === 'weight_reps') return `${s.weight || 0}kg × ${s.reps || 0}`
+/** 把一组集合并成简写：「60kg × 10」/「20 次」/「30 秒」/「5 km」（按设置单位展示重量） */
+function fmtSet(metric: Metric, s: SetRecord, unit: Unit): string {
+  if (metric === 'weight_reps') return `${displayWeight(s.weight || 0, unit)}${unitLabel(unit)} × ${s.reps || 0}`
   if (metric === 'reps') return `${s.reps || 0} 次`
   if (metric === 'time') return `${s.durationSec || 0} 秒`
   if (metric === 'distance') return `${s.distance || 0} km`
   return ''
 }
 
-/** 把同一动作的多组合并成简写 */
-function summarize(ex: Exercise | undefined, sets: SetRecord[]): string {
+/** 把同一动作的多组合并成简写（按设置单位展示重量） */
+function summarize(ex: Exercise | undefined, sets: SetRecord[], unit: Unit): string {
   const metric: Metric = ex?.metric ?? 'weight_reps'
   if (sets.length === 0) return ''
   if (metric === 'time') {
     const sec = sets.reduce((s, x) => s + (x.durationSec || 0), 0)
     const parts: string[] = [`${sets.length} 组 × ${fmtDurMin(sec)}`]
     const w = Math.max(...sets.map(x => x.weight || 0))
-    if (w > 0) parts.unshift(`负重 ${w}kg`)
+    if (w > 0) parts.unshift(`负重 ${displayWeight(w, unit)}${unitLabel(unit)}`)
     return parts.join(' · ')
   }
   if (metric === 'distance') {
@@ -50,7 +52,7 @@ function summarize(ex: Exercise | undefined, sets: SetRecord[]): string {
   }
   // 重量×次数 / 仅次数：取第一组作为代表（一般实际训练每组相同目标）
   const first = sets[0]
-  return `${fmtSet(metric, first)} · ${sets.length} 组`
+  return `${fmtSet(metric, first, unit)} · ${sets.length} 组`
 }
 
 export default function History() {
@@ -58,6 +60,7 @@ export default function History() {
   const [selected, setSelected] = useState(dayjs().format('YYYY-MM-DD'))
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [confirmDelId, setConfirmDelId] = useState<number | null>(null)
+  const [unit] = useSetting(SK.unit, DEFAULT_UNIT)
   const cursorKey = cursor.format('YYYY-MM')
 
   const monthWorkouts = useLiveQuery(
@@ -223,7 +226,7 @@ export default function History() {
                       return (
                         <div key={exId} className="ex-line">
                           <span className="name">{name}</span>
-                          <span className="ex-summary">{summarize(ex, exSets)}</span>
+                          <span className="ex-summary">{summarize(ex, exSets, unit)}</span>
                         </div>
                       )
                     })

@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { pushBackHandler } from '../utils/backStack'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Toast, Dialog } from 'antd-mobile'
+import { Toast, Dialog, DatePicker, Input } from 'antd-mobile'
 import dayjs from 'dayjs'
 import { db } from '../db'
+import type { DailyHealth } from '../db/types'
 import {
   DEFAULT_REST_EXERCISES, DEFAULT_REST_SETS,
 } from '../db/types'
-import { DEFAULT_UNIT, DEFAULT_WEEK_GOAL, SK, useSetting } from '../hooks/useSetting'
+import { DEFAULT_UNIT, DEFAULT_WEEK_GOAL, DEFAULT_THEME, SK, type Theme, useSetting } from '../hooks/useSetting'
+import { applyTheme } from '../theme'
 import { Page } from '../components/Layout'
 import RestTimer from '../components/RestTimer'
 import { canVibrate, notifyRestEnd } from '../utils/feedback'
@@ -26,6 +28,39 @@ export default function Settings() {
   const [sound, setSound] = useSetting(SK.restSound, true)
   const [unit, setUnit] = useSetting(SK.unit, DEFAULT_UNIT)
   const [weekGoal, setWeekGoal] = useSetting(SK.weekGoal, DEFAULT_WEEK_GOAL)
+  const [theme, setTheme] = useSetting(SK.theme, DEFAULT_THEME)
+
+  // 应用主题；system 模式监听系统切换实时跟随
+  useEffect(() => {
+    applyTheme(theme)
+    if (theme !== 'system') return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = () => applyTheme('system')
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [theme])
+
+  // 每日热量手动录入（补录手表/小米运动健康数据）
+  const [healthDate, setHealthDate] = useState(dayjs().format('YYYY-MM-DD'))
+  const [healthKcal, setHealthKcal] = useState('')
+  const [datePicker, setDatePicker] = useState(false)
+  const recentHealth = useLiveQuery(
+    () => db.dailyHealth.orderBy('date').reverse().limit(3).toArray(),
+    [], [] as DailyHealth[],
+  )
+  const saveHealth = async () => {
+    const kcal = Math.max(0, Number(healthKcal) || 0)
+    if (kcal <= 0) { Toast.show('请输入热量 kcal'); return }
+    const row: DailyHealth = {
+      date: healthDate,
+      calories: kcal,
+      source: 'manual',
+      importedAt: Date.now(),
+    }
+    await db.dailyHealth.put(row) // date 为主键，重复日期自动覆盖
+    Toast.show('已保存 ' + healthDate + ' 的热量')
+    setHealthKcal('')
+  }
 
   // 数据统计（用于导出预览/清空说明）
   const counts = useLiveQuery(async () => ({
@@ -222,9 +257,51 @@ export default function Settings() {
           </div>
           <div className="small muted" style={{ paddingTop: 8 }}>
             当前选择：<b>{unit === 'kg' ? '公斤' : '磅'}</b>。
-            当前已记住偏好，训练录入与历史显示的换算会在后续版本接通——
-            现在所有数字仍按 kg 原值展示。
+            已接通：训练录入与历史/统计展示均按此单位换算（kg 为存储基准）。
           </div>
+        </div>
+
+        {/* 外观 / 主题 */}
+        <div className="card">
+          <h3 className="card-title">外观</h3>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['system', 'light', 'dark'] as Theme[]).map(t => (
+              <button key={t} className={'chip' + (theme === t ? ' on' : '')} onClick={() => setTheme(t)}>
+                {t === 'system' ? '跟随系统' : t === 'light' ? '浅色' : '深色'}
+              </button>
+            ))}
+          </div>
+          <div className="small muted" style={{ paddingTop: 8 }}>
+            当前：<b>{theme === 'system' ? '跟随系统' : theme === 'light' ? '浅色' : '深色'}</b>。
+          </div>
+        </div>
+
+        {/* 每日热量录入 */}
+        <div className="card">
+          <h3 className="card-title">
+            每日热量录入
+            <span className="small muted" style={{ fontWeight: 400 }}>手动补录手表数据</span>
+          </h3>
+          <div className="set-row">
+            <span className="grow">日期</span>
+            <span className="small muted" style={{ color: 'var(--brand)' }} onClick={() => setDatePicker(true)}>{healthDate} ›</span>
+          </div>
+          <div className="set-row" style={{ marginTop: 10 }}>
+            <span className="grow">消耗热量 kcal</span>
+            <Input
+              value={healthKcal}
+              onChange={setHealthKcal}
+              type="number"
+              placeholder="如 320"
+              style={{ width: 96, textAlign: 'right' }}
+            />
+          </div>
+          <button className="btn-primary" style={{ width: '100%', marginTop: 12 }} onClick={saveHealth}>保存</button>
+          {recentHealth.length > 0 && (
+            <div className="small muted" style={{ marginTop: 10, textAlign: 'center' }}>
+              最近：{recentHealth.map(r => `${r.date} ${r.calories}kcal`).join(' · ')}
+            </div>
+          )}
         </div>
 
         {/* 数据备份 */}
@@ -280,6 +357,14 @@ export default function Settings() {
             </div>
           )}
         </div>
+
+        <DatePicker
+          visible={datePicker}
+          precision="day"
+          value={new Date(healthDate)}
+          onClose={() => setDatePicker(false)}
+          onConfirm={(val) => { setHealthDate(dayjs(val).format('YYYY-MM-DD')); setDatePicker(false) }}
+        />
       </Page>
 
       {/* 导入确认弹窗 */}

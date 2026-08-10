@@ -15,8 +15,11 @@ export const SK = {
   restSound: 'rest_sound',
   unit: 'unit',           // 'kg' | 'lb'
   weekGoal: 'week_goal',  // number
+  theme: 'theme',         // 'system' | 'light' | 'dark'
 } as const
 
 export type Unit = 'kg' | 'lb'
+export type Theme = 'system' | 'light' | 'dark'
 export const DEFAULT_UNIT: Unit = 'kg'
 export const DEFAULT_WEEK_GOAL = 4
+export const DEFAULT_THEME: Theme = 'system'
